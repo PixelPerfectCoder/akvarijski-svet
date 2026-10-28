@@ -142,9 +142,9 @@
 
         <div class="max-w-6xl mx-auto w-full p-6 sm:p-10 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             <div class="lg:col-span-7 flex flex-col space-y-4">
-                <div class="bg-slate-200 rounded-3xl overflow-hidden relative shadow-lg aspect-4/3 flex items-center justify-center border border-slate-300">
-                    <img id="modal-img" src="" alt="Izdelek" class="w-full h-full object-cover">
-                    <div id="modal-stock-badge" class="absolute top-4 left-4"></div>
+                <div id="modal-img-container" class="bg-slate-200 rounded-3xl overflow-hidden relative shadow-lg aspect-4/3 flex items-center justify-center border border-slate-300">
+                    <!-- Image inserted via JS -->
+                    <div id="modal-stock-badge" class="absolute top-4 left-4 z-10"></div>
                 </div>
             </div>
 
@@ -236,9 +236,8 @@
     <!-- JAVASCRIPT LOGIC -->
     <script>
         const SUPABASE_URL = "https://wqjpdtxaclcciiytyxjc.supabase.co";
-        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxanBkdHhhY2xjY2lpeXR5eGpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMTkyNzYsImV4cCI6MjEwODc5NTI3Nn0.53fSrG0zq_JtlUA9EKXsrm32m8DqMwNorJgZGN_lFo0";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxanBkdHhhY2xjY2lpeXR5eGjcIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMTkyNzYsImV4cCI6MjEwODc5NTI3Nn0.53fSrG0zq_JtlUA9EKXsrm32m8DqMwNorJgZGN_lFo0";
         const WEB3FORMS_KEY = "59254fb0-9372-4565-a64b-a51ed72ed00e";
-        const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=600&auto=format&fit=crop&q=80";
 
         let supabaseClient = null;
         try {
@@ -248,21 +247,6 @@
         } catch (err) {
             console.warn("Supabase init alert:", err);
         }
-
-        // Vsi predvideni izdelki (privzeti nabor)
-        const DEFAULT_PRODUCTS = [
-            { id: 1, name: "Sumatranka navadna", category: "ribice", price: 2.20, quantity: 20, views: 10, desc: "Živahna akvarijska ribica z prepoznavnimi črnimi progami.", image: "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=800&auto=format&fit=crop&q=80", active: true },
-            { id: 2, name: "Zelena sumatranka", category: "ribice", price: 2.50, quantity: 15, views: 8, desc: "Prelep zelenkasto-smaragdni odsev na klasični sumatranki.", image: "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=800&auto=format&fit=crop&q=80", active: true },
-            { id: 3, name: "Ancistrus navadni", category: "ribice", price: 3.50, quantity: 10, views: 25, desc: "Odličen čistelec alg in nezahteven rogat somič.", image: "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=800&auto=format&fit=crop&q=80", active: true },
-            { id: 4, name: "CPD - Nebeška razbora", category: "ribice", price: 3.80, quantity: 25, views: 30, desc: "Atraktivna mikro ribica z zvezdnim vzorcem.", image: "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=800&auto=format&fit=crop&q=80", active: true },
-            { id: 5, name: "Črna fantom tetra", category: "ribice", price: 2.40, quantity: 18, views: 12, desc: "Miroljubna in elegantna jata ribica s temnimi plavutmi.", image: "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=800&auto=format&fit=crop&q=80", active: true },
-            { id: 6, name: "Klinasta razbora", category: "ribice", price: 2.10, quantity: 20, views: 15, desc: "Klasična in trpežna akvarijska ribica.", image: "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=800&auto=format&fit=crop&q=80", active: true },
-            { id: 7, name: "Melania polž", category: "kozice", price: 0.80, quantity: 50, views: 5, desc: "Nujno koristen polž, ki rahlja pesek/podlago v akvariju.", image: "https://images.unsplash.com/photo-1535591273668-578e31182c4f?w=800&auto=format&fit=crop&q=80", active: true },
-            { id: 8, name: "Kriptokorina", category: "rastline", price: 3.50, quantity: 10, views: 14, desc: "Trpežna in nezahtevna akvarijska rastlina.", image: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=800&auto=format&fit=crop&q=80", active: true },
-            { id: 9, name: "Akvarijski mah", category: "rastline", price: 4.00, quantity: 12, views: 18, desc: "Gost mah, odličen za mlade kozice in ribice.", image: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=800&auto=format&fit=crop&q=80", active: true },
-            { id: 10, name: "Simflora", category: "rastline", price: 4.50, quantity: 8, views: 9, desc: "Eleganten in dekorativen akvarijski mah.", image: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=800&auto=format&fit=crop&q=80", active: true },
-            { id: 11, name: "Najas", category: "rastline", price: 2.50, quantity: 15, views: 7, desc: "Hitro rastoča rastlina za porabo viška hranil v vodi.", image: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=800&auto=format&fit=crop&q=80", active: true }
-        ];
 
         let products = [];
         let cart = JSON.parse(localStorage.getItem('akvasvet_cart')) || [];
@@ -294,6 +278,19 @@
             return num.toFixed(2) + ' €';
         }
 
+        // Pomožna funkcija za lep prikaz, ko slika ne obstaja ali se ne naloži
+        function renderImageHTML(imgUrl, altText, extraClasses = "w-full h-full object-cover") {
+            if (!imgUrl || typeof imgUrl !== 'string' || imgUrl.trim() === '') {
+                return `
+                    <div class="w-full h-full flex flex-col items-center justify-center bg-slate-200 text-slate-400 p-4 text-center select-none">
+                        <i class="fa-solid fa-image text-3xl mb-1 text-slate-300"></i>
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Slika ni na voljo</span>
+                    </div>
+                `;
+            }
+            return `<img src="${imgUrl}" alt="${altText}" class="${extraClasses}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-full flex flex-col items-center justify-center bg-slate-200 text-slate-400 p-4 text-center select-none\\'><i class=\\'fa-solid fa-image text-3xl mb-1 text-slate-300\\'></i><span class=\\'text-[11px] font-bold uppercase tracking-wider text-slate-500\\'>Slika ni na voljo</span></div>';">`;
+        }
+
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
             if (!container) return;
@@ -316,6 +313,14 @@
         }
 
         async function fetchProductsFromSupabase() {
+            const container = document.getElementById('product-grid');
+            container.innerHTML = `
+                <div class="col-span-full flex flex-col items-center justify-center py-16 text-slate-400 space-y-3">
+                    <i class="fa-solid fa-spinner fa-spin text-3xl text-teal-600"></i>
+                    <p class="text-xs font-semibold">Osveževanje ponudbe iz baze...</p>
+                </div>
+            `;
+
             try {
                 if (!supabaseClient) throw new Error("Supabase client not ready");
 
@@ -332,9 +337,6 @@
                             else if (p.stock !== undefined && p.stock !== null) qtyVal = parseInt(p.stock);
 
                             let imgVal = p.image || p.image_url || p.img || p.slika;
-                            if (!imgVal || typeof imgVal !== 'string' || imgVal.trim() === '') {
-                                imgVal = FALLBACK_IMAGE;
-                            }
 
                             return {
                                 id: p.id,
@@ -344,20 +346,36 @@
                                 quantity: qtyVal,
                                 views: parseInt(p.views || 0),
                                 desc: p.desc || p.description || p.opis || 'Za ta izdelek trenutno ni dodatnega opisa.',
-                                image: imgVal,
+                                image: imgVal ? imgVal.trim() : '',
                                 active: p.active !== false
                             };
                         });
                 } else {
-                    products = DEFAULT_PRODUCTS;
+                    products = getDefaultProducts();
                 }
             } catch (err) {
-                console.warn("Uporaba privzetih podatkov:", err);
-                products = DEFAULT_PRODUCTS;
+                console.warn("Uporaba rezervnih podatkov:", err);
+                products = getDefaultProducts();
             }
 
             renderCategories();
             renderProducts();
+        }
+
+        function getDefaultProducts() {
+            return [
+                { 
+                    id: 1, 
+                    name: "Sterbijo cory (Corydoras sterbai)", 
+                    category: "ribice", 
+                    price: 4.50, 
+                    quantity: 15, 
+                    views: 12, 
+                    desc: "Sterbijo cory je izjemno priljubljen in miroljuben oklepni somič z značilnim vzorcem pik in oranžnimi prsnimi plavutmi.", 
+                    image: "",
+                    active: true
+                }
+            ];
         }
 
         async function incrementViews(productId) {
@@ -449,8 +467,8 @@
                 return `
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden group">
                         <div class="h-48 bg-slate-100 overflow-hidden relative cursor-pointer" onclick="openProductModal(${p.id})">
-                            <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}';">
-                            <div class="absolute top-3 left-3 flex flex-col space-y-1 items-start">
+                            ${renderImageHTML(p.image, p.name, "w-full h-full object-cover group-hover:scale-105 transition duration-500")}
+                            <div class="absolute top-3 left-3 flex flex-col space-y-1 items-start z-10">
                                 ${
                                     inStock 
                                         ? `<span class="bg-emerald-500/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm"><i class="fa-solid fa-check mr-1"></i> Na voljo: ${p.quantity}</span>`
@@ -506,19 +524,23 @@
             currentModalProductId = product.id;
             currentModalQty = 1;
 
-            document.getElementById('modal-img').src = product.image;
+            const imgContainer = document.getElementById('modal-img-container');
+            const inStock = product.quantity > 0;
+            const stockBadgeHTML = inStock 
+                ? `<span class="bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm"><i class="fa-solid fa-check mr-1"></i> Na voljo: ${product.quantity} kos</span>`
+                : '<span class="bg-rose-500/90 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm"><i class="fa-solid fa-xmark mr-1"></i> Ni na voljo</span>';
+
+            imgContainer.innerHTML = `
+                ${renderImageHTML(product.image, product.name, "w-full h-full object-cover")}
+                <div id="modal-stock-badge" class="absolute top-4 left-4 z-10">${stockBadgeHTML}</div>
+            `;
+
             document.getElementById('modal-title').textContent = product.name;
             document.getElementById('modal-title-header').textContent = product.name;
             document.getElementById('modal-category').textContent = product.category;
             document.getElementById('modal-desc').textContent = product.desc;
             document.getElementById('modal-price').textContent = formatPrice(product.price);
             document.getElementById('modal-qty').textContent = currentModalQty;
-
-            const badgeContainer = document.getElementById('modal-stock-badge');
-            const inStock = product.quantity > 0;
-            badgeContainer.innerHTML = inStock 
-                ? `<span class="bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm"><i class="fa-solid fa-check mr-1"></i> Na voljo: ${product.quantity} kos</span>`
-                : '<span class="bg-rose-500/90 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm"><i class="fa-solid fa-xmark mr-1"></i> Ni na voljo</span>';
 
             const addBtn = document.getElementById('modal-add-btn');
             if (inStock) {
@@ -655,7 +677,9 @@
             container.innerHTML = cart.map((item, index) => `
                 <div class="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-200">
                     <div class="flex items-center space-x-3">
-                        <img src="${item.image}" alt="${item.name}" class="w-12 h-12 object-cover rounded-xl border border-slate-200">
+                        <div class="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 bg-slate-200">
+                            ${renderImageHTML(item.image, item.name, "w-full h-full object-cover")}
+                        </div>
                         <div>
                             <h4 class="font-bold text-xs text-slate-800 line-clamp-1">${item.name}</h4>
                             <span class="text-[11px] text-teal-700 font-extrabold">${formatPrice(item.price)}</span>
@@ -774,6 +798,3 @@
     </script>
 </body>
 </html>
-```
-
-Kliknite na gumb **Preview** zgoraj desno, da preizkusite delovanje spletne strani.
