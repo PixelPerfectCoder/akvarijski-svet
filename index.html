@@ -37,7 +37,7 @@
 
     <!-- ANNOUNCEMENT BANNER -->
     <div class="bg-teal-800 text-teal-100 text-xs md:text-sm py-2 px-4 text-center font-medium shadow-inner">
-        🌿 Domača vzreja akvarijskih ribic, kozic in rastlin! Hitra dostava ter osebni prevzem po dogovoru.
+        🌿 Domača vzreja akvarijskih ribic, kozic in rastlin! Samo osebni prevzem.
     </div>
 
     <!-- MAIN HEADER -->
@@ -71,15 +71,12 @@
         <!-- HERO BANNER -->
         <div class="bg-gradient-to-r from-teal-800 to-emerald-700 rounded-3xl p-6 sm:p-10 text-white mb-8 shadow-xl relative overflow-hidden">
             <div class="relative z-10 max-w-2xl">
-                <!-- POSODOBLJENA ZNAČKA -->
                 <span class="inline-block bg-teal-900/50 text-teal-200 text-xs font-bold px-3 py-1 rounded-full mb-3 uppercase tracking-wider border border-teal-500/30">
                     Hobi Akvaristika
                 </span>
-                <!-- POSODOBLJEN NASLOV -->
                 <h1 class="text-2xl sm:text-4xl font-extrabold mb-3 leading-tight">Zdrave ribice, kozice in rastline iz domačih akvarijev</h1>
-                <!-- POSODOBLJENO BESEDILO -->
                 <p class="text-teal-100 text-xs sm:text-sm leading-relaxed mb-6">
-                    Srečni in zdravi akvarijski prebivalci ter rastline, vzgojeni z ljubeznijo do hobija. Ker se moji akvariji hitro polnijo, nudim presežke lastne vzreje. Preglejte ponudbo in se dogovorite za prevzem!
+                    Srečni in zdravi akvarijski prebivalci ter rastline, vzgojeni z ljubeznijo do hobija. Ker se moji akvariji hitro polnijo, nudim presežke lastne vzreje. Preglejte ponudbo in oddajte povpraševanje!
                 </p>
                 <a href="#product-grid" class="inline-flex items-center space-x-2 bg-amber-400 hover:bg-amber-300 text-slate-900 px-6 py-3 rounded-xl text-xs sm:text-sm font-extrabold transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
                     <span>Razišči ponudbo</span>
@@ -107,7 +104,7 @@
                 <i class="fa-solid fa-fish-fins text-teal-400"></i>
                 <span>AkvarijskiSvet Slovenija</span>
             </div>
-            <p class="text-slate-500">Kakovostna hobi vzreja ribic, kozic in rastlin ter svetovanje za hobi akvariste.</p>
+            <p class="text-slate-500">Kakovostna hobi vzreja ribic, kozic in rastlin</p>
             <p>© 2026 AkvarijskiSvet - Vse pravice pridržane.</p>
         </div>
     </footer>
@@ -224,270 +221,8 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Opombe / Naslov prevzema</label>
-                        <textarea id="cust-notes" rows="2" placeholder="Morebitne opombe glede časa prevzema ali pošiljanja..." class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none transition"></textarea>
+                        <textarea id="cust-notes" rows="2" placeholder="Morebitne opombe glede časa prevzema..." class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none transition"></textarea>
                     </div>
 
                     <button type="submit" id="submit-btn" class="w-full bg-teal-700 hover:bg-teal-800 active:bg-teal-900 text-white py-3 rounded-xl font-bold text-xs shadow-md transition flex items-center justify-center space-x-2 disabled:opacity-50">
-                        <i class="fa-solid fa-paper-plane"></i>
-                        <span id="submit-btn-text">Oddaj naročilo</span>
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- JAVASCRIPT LOGIC -->
-    <script>
-        const SUPABASE_URL = "https://wqjpdtxaclcciiytyxjc.supabase.co";
-        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxanBkdHhhY2xjY2lpeXR5eGjcIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMTkyNzYsImV4cCI6MjEwODc5NTI3Nn0.53fSrG0zq_JtlUA9EKXsrm32m8DqMwNorJgZGN_lFo0";
-        const WEB3FORMS_KEY = "59254fb0-9372-4565-a64b-a51ed72ed00e";
-        const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=600&auto=format&fit=crop&q=80";
-
-        let supabaseClient = null;
-        try {
-            if (window.supabase && typeof window.supabase.createClient === 'function') {
-                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            }
-        } catch (err) {
-            console.warn("Supabase init alert:", err);
-        }
-
-        let products = [];
-        let cart = JSON.parse(localStorage.getItem('akvasvet_cart')) || [];
-        let activeCategory = 'vse';
-        let currentModalProductId = null;
-        let currentModalQty = 1;
-
-        // OHRANJENI SAMO ZAHTEVANI GUMBI
-        const FIXED_CATEGORIES = [
-            { id: 'vse', label: 'Vsi izdelki' },
-            { id: 'ribice', label: 'Ribice' },
-            { id: 'kozice', label: 'Kozice' },
-            { id: 'rastline', label: 'Rastline' }
-        ];
-
-        const CATEGORY_ORDER_MAP = {
-            'ribice': 1,
-            'kozice': 2,
-            'rastline': 3
-        };
-
-        window.onload = function() {
-            updateCartBadge();
-            renderCategories();
-            fetchProductsFromSupabase();
-        };
-
-        function formatPrice(val) {
-            const num = parseFloat(val) || 0;
-            return num.toFixed(2) + ' €';
-        }
-
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
-
-            const toast = document.createElement('div');
-            toast.className = `pointer-events-auto flex items-center space-x-2 px-4 py-3 rounded-2xl shadow-xl text-white text-xs font-bold transition-all duration-300 transform translate-y-2 opacity-0 ${
-                type === 'error' ? 'bg-rose-600' : 'bg-teal-800'
-            }`;
-            toast.innerHTML = `
-                <i class="fa-solid ${type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check'} text-sm"></i>
-                <span>${message}</span>
-            `;
-
-            container.appendChild(toast);
-            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
-            setTimeout(() => {
-                toast.classList.add('translate-y-2', 'opacity-0');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        }
-
-        async function fetchProductsFromSupabase() {
-            const container = document.getElementById('product-grid');
-            container.innerHTML = `
-                <div class="col-span-full flex flex-col items-center justify-center py-16 text-slate-400 space-y-3">
-                    <i class="fa-solid fa-spinner fa-spin text-3xl text-teal-600"></i>
-                    <p class="text-xs font-semibold">Osveževanje ponudbe iz baze...</p>
-                </div>
-            `;
-
-            try {
-                if (!supabaseClient) throw new Error("Supabase client not ready");
-
-                const { data, error } = await supabaseClient.from('products').select('*');
-                if (error) throw error;
-
-                if (data && data.length > 0) {
-                    products = data
-                        .filter(p => p.active !== false)
-                        .map(p => {
-                            let qtyVal = 0;
-                            if (p.quantity !== undefined && p.quantity !== null) qtyVal = parseInt(p.quantity);
-                            else if (p.zaloga !== undefined && p.zaloga !== null) qtyVal = parseInt(p.zaloga);
-                            else if (p.stock !== undefined && p.stock !== null) qtyVal = parseInt(p.stock);
-
-                            let imgVal = p.image || p.image_url || p.img || p.slika;
-                            if (!imgVal || typeof imgVal !== 'string' || imgVal.trim() === '') {
-                                imgVal = FALLBACK_IMAGE;
-                            }
-
-                            return {
-                                id: p.id,
-                                name: p.name || p.naziv || p.title || 'Neimenovan izdelek',
-                                category: (p.category || p.kategorija || 'ostalo').toLowerCase().trim(),
-                                price: parseFloat(p.price || p.cena || 0),
-                                quantity: qtyVal,
-                                views: parseInt(p.views || 0),
-                                desc: p.desc || p.description || p.opis || 'Za ta izdelek trenutno ni dodatnega opisa.',
-                                image: imgVal,
-                                active: p.active !== false
-                            };
-                        });
-                } else {
-                    products = getDefaultProducts();
-                }
-            } catch (err) {
-                console.warn("Uporaba rezervnih podatkov:", err);
-                products = getDefaultProducts();
-            }
-
-            renderCategories();
-            renderProducts();
-        }
-
-        function getDefaultProducts() {
-            return [
-                { 
-                    id: 1, 
-                    name: "Sterbijo cory (Corydoras sterbai)", 
-                    category: "ribice", 
-                    price: 4.50, 
-                    quantity: 15, 
-                    views: 12, 
-                    desc: "Sterbijo cory je izjemno priljubljen in miroljuben oklepni somič z značilnim vzorcem pik in oranžnimi prsnimi plavutmi.", 
-                    image: "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=800&auto=format&fit=crop&q=80",
-                    active: true
-                }
-            ];
-        }
-
-        async function incrementViews(productId) {
-            const product = products.find(p => p.id == productId);
-            if (!product) return;
-
-            product.views = (product.views || 0) + 1;
-
-            try {
-                if (supabaseClient) {
-                    await supabaseClient
-                        .from('products')
-                        .update({ views: product.views })
-                        .eq('id', productId);
-                }
-            } catch (err) {
-                console.warn("Napaka pri posodabljanju ogledov:", err);
-            }
-        }
-
-        function renderCategories() {
-            const container = document.getElementById('category-filters');
-            if (!container) return;
-
-            container.innerHTML = FIXED_CATEGORIES.map(cat => {
-                const isActive = activeCategory === cat.id;
-                return `
-                    <button onclick="filterCategory('${cat.id}')" class="px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm border ${
-                        isActive 
-                            ? 'bg-teal-700 text-white border-teal-700 shadow-md scale-105' 
-                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }">
-                        ${cat.label}
-                    </button>
-                `;
-            }).join('');
-        }
-
-        function filterCategory(catId) {
-            activeCategory = catId;
-            renderCategories();
-            renderProducts();
-        }
-
-        function renderProducts() {
-            const container = document.getElementById('product-grid');
-            if (!container) return;
-
-            let filtered = [];
-            if (activeCategory === 'vse') {
-                filtered = [...products].sort((a, b) => {
-                    const orderA = CATEGORY_ORDER_MAP[a.category] || 99;
-                    const orderB = CATEGORY_ORDER_MAP[b.category] || 99;
-                    if (orderA !== orderB) return orderA - orderB;
-                    return (b.views || 0) - (a.views || 0);
-                });
-            } else {
-                filtered = products
-                    .filter(p => p.category === activeCategory)
-                    .sort((a, b) => (b.views || 0) - (a.views || 0));
-            }
-
-            const popularIds = new Set();
-            const categories = ['ribice', 'kozice', 'rastline'];
-
-            categories.forEach(cat => {
-                const topInCat = products
-                    .filter(p => p.category === cat && (p.views || 0) > 0)
-                    .sort((a, b) => (b.views || 0) - (a.views || 0))
-                    .slice(0, 2);
-
-                topInCat.forEach(p => popularIds.add(p.id));
-            });
-
-            if (filtered.length === 0) {
-                container.innerHTML = `
-                    <div class="col-span-full text-center py-12 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-                        <i class="fa-solid fa-box-open text-4xl mb-2 text-slate-300"></i>
-                        <p class="font-bold text-sm">Ni najdenih artiklov v tej kategoriji.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = filtered.map(p => {
-                const inStock = p.quantity > 0;
-                const isPopular = popularIds.has(p.id);
-
-                return `
-                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden group">
-                        <div class="h-48 bg-slate-100 overflow-hidden relative cursor-pointer" onclick="openProductModal(${p.id})">
-                            <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}';">
-                            <div class="absolute top-3 left-3 flex flex-col space-y-1 items-start">
-                                ${
-                                    inStock 
-                                        ? `<span class="bg-emerald-500/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm"><i class="fa-solid fa-check mr-1"></i> Na zalogi: ${p.quantity}</span>`
-                                        : '<span class="bg-rose-500/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm"><i class="fa-solid fa-xmark mr-1"></i> Ni na zalogi</span>'
-                                }
-                                ${
-                                    isPopular 
-                                        ? '<span class="bg-amber-500/90 backdrop-blur-md text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-sm"><i class="fa-solid fa-fire mr-1"></i> Priljubljeno</span>' 
-                                        : ''
-                                }
-                            </div>
-                        </div>
-
-                        <div class="p-5 flex flex-col flex-grow justify-between space-y-3">
-                            <div>
-                                <span class="text-[10px] font-extrabold text-teal-600 uppercase tracking-wider">${p.category}</span>
-                                <h3 class="font-bold text-slate-800 text-base leading-snug line-clamp-1 group-hover:text-teal-700 transition cursor-pointer" onclick="openProductModal(${p.id})">${p.name}</h3>
-                                <p class="text-slate-500 text-xs line-clamp-2 mt-1 leading-relaxed">${p.desc}</p>
-                            </div>
-
-                            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-                                <div>
-                                    <span class="block text-[9px] text-slate-400 font-bold uppercase">Cena</span>
-                                    <span class="text-lg font-black text-slate-900">${formatPrice(p.price)}</span>
-                                </div>
-                                <div class="flex items-center space-x-1">
-                                    <button
+                        <i class="
