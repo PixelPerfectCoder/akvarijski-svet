@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="sl">
 <head>
@@ -203,4 +204,615 @@
                 </button>
             </div>
 
-            <div class="p-5 flex-grow overflow-y-auto space-y-3
+            <div class="p-5 flex-grow overflow-y-auto space-y-3" id="cart-items-container"></div>
+
+            <div class="p-5 bg-slate-50 border-t border-slate-200 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div class="flex justify-between items-center text-slate-800 pb-2 border-b border-slate-200">
+                    <span class="font-semibold text-sm">Ocenjena vrednost (ob prevzemu):</span>
+                    <span id="cart-total-price" class="text-teal-800 text-xl font-black">0.00 €</span>
+                </div>
+
+                <form id="order-form" onsubmit="submitOrder(event)" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Ime in Priimek *</label>
+                        <input type="text" id="cust-name" required placeholder="npr. Janez Novak" class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">E-poštni naslov *</label>
+                        <input type="email" id="cust-email" required placeholder="npr. janez@example.com" class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Telefonska številka *</label>
+                        <input type="tel" id="cust-phone" required placeholder="npr. 040 123 456" class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Želen termin ali opomba za prevzem</label>
+                        <textarea id="cust-notes" rows="2" placeholder="Kdaj bi vam ustrezal osebni prevzem..." class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none transition"></textarea>
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="w-full bg-teal-700 hover:bg-teal-800 active:bg-teal-900 text-white py-3 rounded-xl font-bold text-xs shadow-md transition flex items-center justify-center space-x-2 disabled:opacity-50">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span id="submit-btn-text">Oddaj brezplačno rezervacijo</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        const SUPABASE_URL = "https://wqjpdtxaclcciiytyxjc.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxanBkdHhhY2xjY2lpeXR5eGpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMTkyNzYsImV4cCI6MjEwODc5NTI3Nn0.53fSrG0zq_JtlUA9EKXsrm32m8DqMwNorJgZGN_lFo0";
+        const WEB3FORMS_KEY = "59254fb0-9372-4565-a64b-a51ed72ed00e";
+        const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=600&auto=format&fit=crop&q=80";
+
+        let supabaseClient = null;
+        try {
+            if (window.supabase && typeof window.supabase.createClient === 'function') {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+        } catch (err) {
+            console.warn("Supabase init alert:", err);
+        }
+
+        let products = [];
+        let cart = JSON.parse(localStorage.getItem('akvasvet_cart')) || [];
+        let activeCategory = 'vse';
+        let currentModalProductId = null;
+        let currentModalQty = 1;
+
+        const FIXED_CATEGORIES = [
+            { id: 'vse', label: 'Vsi izdelki' },
+            { id: 'ribice', label: 'Ribice' },
+            { id: 'kozice', label: 'Kozice' },
+            { id: 'rastline', label: 'Rastline' }
+        ];
+
+        const CATEGORY_ORDER_MAP = {
+            'ribice': 1,
+            'kozice': 2,
+            'rastline': 3
+        };
+
+        window.onload = function() {
+            updateCartBadge();
+            renderCategories();
+            fetchProductsFromSupabase();
+        };
+
+        function formatPrice(val) {
+            const num = parseFloat(val) || 0;
+            return num.toFixed(2) + ' €';
+        }
+
+        function renderImageHTML(imgUrl, altText, extraClasses = "w-full h-full object-cover") {
+            if (!imgUrl || typeof imgUrl !== 'string' || imgUrl.trim() === '') {
+                return `
+                    <div class="w-full h-full flex flex-col items-center justify-center bg-slate-200 text-slate-400 p-4 text-center select-none">
+                        <i class="fa-solid fa-image text-3xl mb-1 text-slate-300"></i>
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Slika ni na voljo</span>
+                    </div>
+                `;
+            }
+            return `<img src="${imgUrl}" alt="${altText}" class="${extraClasses}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-full flex flex-col items-center justify-center bg-slate-200 text-slate-400 p-4 text-center select-none\\'><i class=\\'fa-solid fa-image text-3xl mb-1 text-slate-300\\'></i><span class=\\'text-[11px] font-bold uppercase tracking-wider text-slate-500\\'>Slika ni na voljo</span></div>';">`;
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto flex items-center space-x-2 px-4 py-3 rounded-2xl shadow-xl text-white text-xs font-bold transition-all duration-300 transform translate-y-2 opacity-0 ${
+                type === 'error' ? 'bg-rose-600' : 'bg-teal-800'
+            }`;
+            toast.innerHTML = `
+                <i class="fa-solid ${type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check'} text-sm"></i>
+                <span>${message}</span>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        async function fetchProductsFromSupabase() {
+            const container = document.getElementById('product-grid');
+            container.innerHTML = `
+                <div class="col-span-full flex flex-col items-center justify-center py-16 text-slate-400 space-y-3">
+                    <i class="fa-solid fa-spinner fa-spin text-3xl text-teal-600"></i>
+                    <p class="text-xs font-semibold">Osveževanje ponudbe iz baze...</p>
+                </div>
+            `;
+
+            try {
+                if (!supabaseClient) throw new Error("Supabase client not ready");
+
+                const { data, error } = await supabaseClient.from('products').select('*');
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    products = data
+                        .filter(p => p.active !== false)
+                        .map(p => {
+                            let qtyVal = 0;
+                            if (p.quantity !== undefined && p.quantity !== null) qtyVal = parseInt(p.quantity);
+                            else if (p.zaloga !== undefined && p.zaloga !== null) qtyVal = parseInt(p.zaloga);
+                            else if (p.stock !== undefined && p.stock !== null) qtyVal = parseInt(p.stock);
+
+                            let imgVal = p.image || p.image_url || p.img || p.slika;
+
+                            return {
+                                id: p.id,
+                                name: p.name || p.naziv || p.title || 'Neimenovan izdelek',
+                                category: (p.category || p.kategorija || 'ostalo').toLowerCase().trim(),
+                                price: parseFloat(p.price || p.cena || 0),
+                                old_price: p.old_price ? parseFloat(p.old_price) : null,
+                                promo_text: p.promo_text || null,
+                                quantity: qtyVal,
+                                views: parseInt(p.views || 0),
+                                desc: p.desc || p.description || p.opis || 'Za ta izdelek trenutno ni dodatnega opisa.',
+                                image: imgVal ? imgVal.trim() : '',
+                                active: p.active !== false
+                            };
+                        });
+                } else {
+                    products = getDefaultProducts();
+                }
+            } catch (err) {
+                console.warn("Uporaba rezervnih podatkov:", err);
+                products = getDefaultProducts();
+            }
+
+            renderCategories();
+            renderProducts();
+        }
+
+        function getDefaultProducts() {
+            return [
+                { 
+                    id: 1, 
+                    name: "Sumatranka navadna", 
+                    category: "ribice", 
+                    price: 2.20, 
+                    old_price: 2.80,
+                    promo_text: "10 + 2 GRATIS",
+                    quantity: 20, 
+                    views: 12, 
+                    desc: "Živahna akvarijska ribica z značilnimi črnimi progami.", 
+                    image: FALLBACK_IMAGE,
+                    active: true
+                }
+            ];
+        }
+
+        async function incrementViews(productId) {
+            const product = products.find(p => p.id == productId);
+            if (!product) return;
+
+            product.views = (product.views || 0) + 1;
+
+            try {
+                if (supabaseClient) {
+                    await supabaseClient
+                        .from('products')
+                        .update({ views: product.views })
+                        .eq('id', productId);
+                }
+            } catch (err) {
+                console.warn("Napaka pri posodabljanju ogledov:", err);
+            }
+        }
+
+        function renderCategories() {
+            const container = document.getElementById('category-filters');
+            if (!container) return;
+
+            container.innerHTML = FIXED_CATEGORIES.map(cat => {
+                const isActive = activeCategory === cat.id;
+                return `
+                    <button onclick="filterCategory('${cat.id}')" class="px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm border ${
+                        isActive 
+                            ? 'bg-teal-700 text-white border-teal-700 shadow-md scale-105' 
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }">
+                        ${cat.label}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function filterCategory(catId) {
+            activeCategory = catId;
+            renderCategories();
+            renderProducts();
+        }
+
+        function renderProducts() {
+            const container = document.getElementById('product-grid');
+            if (!container) return;
+
+            let filtered = [];
+            if (activeCategory === 'vse') {
+                filtered = [...products].sort((a, b) => {
+                    const orderA = CATEGORY_ORDER_MAP[a.category] || 99;
+                    const orderB = CATEGORY_ORDER_MAP[b.category] || 99;
+                    if (orderA !== orderB) return orderA - orderB;
+                    return (b.views || 0) - (a.views || 0);
+                });
+            } else {
+                filtered = products
+                    .filter(p => p.category === activeCategory)
+                    .sort((a, b) => (b.views || 0) - (a.views || 0));
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full text-center py-12 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
+                        <i class="fa-solid fa-box-open text-4xl mb-2 text-slate-300"></i>
+                        <p class="font-bold text-sm">Ni najdenih artiklov v tej kategoriji.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map(p => {
+                const inStock = p.quantity > 0;
+                const hasDiscount = p.old_price && p.old_price > p.price;
+
+                return `
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden group">
+                        <div class="h-48 bg-slate-100 overflow-hidden relative cursor-pointer" onclick="openProductModal(${p.id})">
+                            ${renderImageHTML(p.image, p.name, "w-full h-full object-cover group-hover:scale-105 transition duration-500")}
+                            
+                            <div class="absolute top-3 left-3 flex flex-col space-y-1 items-start z-10">
+                                ${
+                                    inStock 
+                                        ? `<span class="bg-emerald-500/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm"><i class="fa-solid fa-check mr-1"></i> Na voljo: ${p.quantity}</span>`
+                                        : '<span class="bg-rose-500/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm"><i class="fa-solid fa-xmark mr-1"></i> Ni na voljo</span>'
+                                }
+                                ${
+                                    p.promo_text 
+                                        ? `<span class="bg-amber-400 text-slate-900 text-[10px] font-black px-2.5 py-1 rounded-full shadow-md border border-amber-300 flex items-center"><i class="fa-solid fa-gift mr-1 text-amber-800"></i> ${p.promo_text}</span>` 
+                                        : ''
+                                }
+                            </div>
+                        </div>
+
+                        <div class="p-5 flex flex-col flex-grow justify-between space-y-3">
+                            <div>
+                                <span class="text-[10px] font-extrabold text-teal-600 uppercase tracking-wider">${p.category}</span>
+                                <h3 class="font-bold text-slate-800 text-base leading-snug line-clamp-1 group-hover:text-teal-700 transition cursor-pointer" onclick="openProductModal(${p.id})">${p.name}</h3>
+                                <p class="text-slate-500 text-xs line-clamp-2 mt-1 leading-relaxed">${p.desc}</p>
+                            </div>
+
+                            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                                <div>
+                                    <span class="block text-[9px] text-slate-400 font-bold uppercase">Cena na kos</span>
+                                    <div class="flex items-baseline space-x-1.5">
+                                        <span class="text-lg font-black ${hasDiscount ? 'text-rose-600' : 'text-slate-900'}">${formatPrice(p.price)}</span>
+                                        ${hasDiscount ? `<span class="text-xs text-slate-400 line-through font-semibold">${formatPrice(p.old_price)}</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-1">
+                                    <button onclick="openProductModal(${p.id})" class="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition" title="Podrobnosti">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                    <button 
+                                        onclick="addToCart(${p.id})" 
+                                        ${!inStock ? 'disabled' : ''} 
+                                        class="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition shadow-sm ${
+                                            inStock 
+                                                ? 'bg-teal-600 hover:bg-teal-700 text-white active:scale-95' 
+                                                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                        }">
+                                        <i class="fa-solid fa-bookmark"></i>
+                                        <span>Rezerviraj</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function openProductModal(id) {
+            const product = products.find(p => p.id == id);
+            if (!product) return;
+
+            currentModalProductId = product.id;
+            currentModalQty = 1;
+
+            const imgContainer = document.getElementById('modal-img-container');
+            const inStock = product.quantity > 0;
+            const stockBadgeHTML = inStock 
+                ? `<span class="bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm"><i class="fa-solid fa-check mr-1"></i> Na voljo: ${product.quantity} kos</span>`
+                : '<span class="bg-rose-500/90 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm"><i class="fa-solid fa-xmark mr-1"></i> Ni na voljo</span>';
+
+            imgContainer.innerHTML = `
+                ${renderImageHTML(product.image, product.name, "w-full h-full object-cover")}
+                <div id="modal-stock-badge" class="absolute top-4 left-4 z-10">${stockBadgeHTML}</div>
+            `;
+
+            document.getElementById('modal-title').textContent = product.name;
+            document.getElementById('modal-title-header').textContent = product.name;
+            document.getElementById('modal-category').textContent = product.category;
+            document.getElementById('modal-desc').textContent = product.desc;
+            
+            const priceContainer = document.getElementById('modal-price-container');
+            const hasDiscount = product.old_price && product.old_price > product.price;
+            priceContainer.innerHTML = `
+                <span class="text-3xl sm:text-4xl font-black ${hasDiscount ? 'text-rose-600' : 'text-teal-800'}">${formatPrice(product.price)}</span>
+                ${hasDiscount ? `<span class="text-lg text-slate-400 line-through font-semibold ml-2">${formatPrice(product.old_price)}</span>` : ''}
+            `;
+
+            const promoBox = document.getElementById('modal-promo-box');
+            const promoText = document.getElementById('modal-promo-text');
+            if (product.promo_text) {
+                promoText.textContent = `Posebna akcija: ${product.promo_text}`;
+                promoBox.classList.remove('hidden');
+            } else {
+                promoBox.classList.add('hidden');
+            }
+
+            document.getElementById('modal-qty').textContent = currentModalQty;
+
+            const addBtn = document.getElementById('modal-add-btn');
+            if (inStock) {
+                addBtn.disabled = false;
+                addBtn.className = "flex-grow bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white py-3.5 px-6 rounded-xl text-base font-extrabold transition shadow-lg flex items-center justify-center space-x-2";
+                addBtn.onclick = function() {
+                    addToCart(product.id, currentModalQty);
+                    closeProductModal();
+                };
+            } else {
+                addBtn.disabled = true;
+                addBtn.className = "flex-grow bg-slate-200 text-slate-400 py-3.5 px-6 rounded-xl text-base font-extrabold cursor-not-allowed flex items-center justify-center space-x-2";
+                addBtn.onclick = null;
+            }
+
+            document.getElementById('product-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+
+            await incrementViews(product.id);
+            renderProducts();
+        }
+
+        function closeProductModal() {
+            document.getElementById('product-modal').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        function changeModalQty(delta) {
+            const product = products.find(p => p.id == currentModalProductId);
+            if (!product) return;
+
+            currentModalQty += delta;
+            if (currentModalQty < 1) currentModalQty = 1;
+            if (currentModalQty > product.quantity) {
+                currentModalQty = product.quantity;
+                showToast(`Na voljo je največ ${product.quantity} kosov.`, "error");
+            }
+            document.getElementById('modal-qty').textContent = currentModalQty;
+        }
+
+        function addToCart(productId, qty = 1) {
+            const product = products.find(p => p.id == productId);
+            if (!product) return;
+
+            if (product.quantity <= 0) {
+                showToast("Izdelek trenutno ni na voljo.", "error");
+                return;
+            }
+
+            const existingIndex = cart.findIndex(item => item.id == productId);
+            if (existingIndex > -1) {
+                const newQty = cart[existingIndex].qty + qty;
+                if (newQty > product.quantity) {
+                    showToast(`V rezervaciji že imate največjo razpoložljivo količino (${product.quantity}).`, "error");
+                    return;
+                }
+                cart[existingIndex].qty = newQty;
+            } else {
+                if (qty > product.quantity) {
+                    showToast(`Na voljo je samo ${product.quantity} kosov.`, "error");
+                    return;
+                }
+                cart.push({
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    image: product.image,
+                    qty: qty,
+                    maxStock: product.quantity
+                });
+            }
+
+            saveCart();
+            showToast(`Uspešno dodano v rezervacijo: ${product.name}`);
+        }
+
+        function updateCartBadge() {
+            const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+            const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+            const deskBadge = document.getElementById('cart-count-badge-desktop');
+            if (deskBadge) deskBadge.textContent = totalItems;
+
+            const mobBadge = document.getElementById('cart-count-badge-mobile');
+            if (mobBadge) mobBadge.textContent = totalItems;
+
+            const mobTotal = document.getElementById('mobile-cart-total');
+            if (mobTotal) mobTotal.textContent = formatPrice(totalPrice);
+
+            const cartTotal = document.getElementById('cart-total-price');
+            if (cartTotal) cartTotal.textContent = formatPrice(totalPrice);
+        }
+
+        function saveCart() {
+            localStorage.setItem('akvasvet_cart', JSON.stringify(cart));
+            updateCartBadge();
+            renderCartItems();
+        }
+
+        function toggleCartModal() {
+            const modal = document.getElementById('cart-modal');
+            if (!modal) return;
+            
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+                renderCartItems();
+            } else {
+                modal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        }
+
+        function handleCartBackgroundClick(event) {
+            if (event.target.id === 'cart-modal') {
+                toggleCartModal();
+            }
+        }
+
+        function renderCartItems() {
+            const container = document.getElementById('cart-items-container');
+            if (!container) return;
+
+            if (cart.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-400 space-y-2">
+                        <i class="fa-solid fa-bookmark text-3xl text-slate-300"></i>
+                        <p class="text-xs font-bold">Seznam rezervacij je prazen.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = cart.map((item, index) => `
+                <div class="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 bg-slate-200">
+                            ${renderImageHTML(item.image, item.name, "w-full h-full object-cover")}
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-xs text-slate-800 line-clamp-1">${item.name}</h4>
+                            <span class="text-[11px] text-teal-700 font-extrabold">${formatPrice(item.price)}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden">
+                            <button onclick="updateCartItemQty(${index}, -1)" class="px-2 py-1 text-slate-600 hover:bg-slate-100 font-bold text-xs">-</button>
+                            <span class="px-2 text-xs font-bold">${item.qty}</span>
+                            <button onclick="updateCartItemQty(${index}, 1)" class="px-2 py-1 text-slate-600 hover:bg-slate-100 font-bold text-xs">+</button>
+                        </div>
+                        <button onclick="removeFromCart(${index})" class="text-slate-400 hover:text-rose-600 p-1.5 transition">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateCartItemQty(index, delta) {
+            const item = cart[index];
+            const newQty = item.qty + delta;
+
+            if (newQty <= 0) {
+                removeFromCart(index);
+                return;
+            }
+
+            const product = products.find(p => p.id == item.id);
+            const max = product ? product.quantity : item.maxStock;
+
+            if (newQty > max) {
+                showToast(`Na voljo je največ ${max} kosov.`, "error");
+                return;
+            }
+
+            item.qty = newQty;
+            saveCart();
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            saveCart();
+        }
+
+        async function submitOrder(event) {
+            event.preventDefault();
+            if (cart.length === 0) {
+                showToast("Seznam rezervacij je prazen!", "error");
+                return;
+            }
+
+            const name = document.getElementById('cust-name').value.trim();
+            const email = document.getElementById('cust-email').value.trim();
+            const phone = document.getElementById('cust-phone').value.trim();
+            const notes = document.getElementById('cust-notes').value.trim();
+
+            const submitBtn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('submit-btn-text');
+            submitBtn.disabled = true;
+            btnText.textContent = "Obdelava rezervacije...";
+
+            try {
+                if (supabaseClient) {
+                    for (const item of cart) {
+                        const product = products.find(p => p.id == item.id);
+                        if (product) {
+                            const updatedQty = Math.max(0, product.quantity - item.qty);
+                            await supabaseClient
+                                .from('products')
+                                .update({ quantity: updatedQty })
+                                .eq('id', item.id);
+                        }
+                    }
+                }
+
+                const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                const itemsSummary = cart.map(i => `${i.qty}x ${i.name} (${formatPrice(i.price * i.qty)})`).join(', ');
+
+                const formData = new FormData();
+                formData.append("access_key", WEB3FORMS_KEY);
+                formData.append("subject", `Nova rezervacija: ${name} - AkvarijskiSvet`);
+                formData.append("from_name", "AkvarijskiSvet Rezervacije");
+                formData.append("Ime in priimek", name);
+                formData.append("E-pošta", email);
+                formData.append("Telefon", phone);
+                formData.append("Želen termin / Opombe", notes || "Brez opomb");
+                formData.append("Rezervirani izdelki", itemsSummary);
+                formData.append("Ocenjena vrednost", formatPrice(totalAmount));
+
+                const response = await fetch("https://api.web3forms.com/submit", {
+                    method: "POST",
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast("Rezervacija je bila uspešno oddana!");
+                    cart = [];
+                    saveCart();
+                    toggleCartModal();
+                    document.getElementById('order-form').reset();
+                    fetchProductsFromSupabase();
+                } else {
+                    throw new Error(result.message || "Napaka pri pošiljanju rezervacije.");
+                }
+
+            } catch (err) {
+                console.warn("Napaka pri oddaji rezervacije:", err);
+                showToast("Prišlo je do napake pri oddaji rezervacije. Poskusite ponovno.", "error");
+            } finally {
+                submitBtn.disabled = false;
+                btnText.textContent = "Oddaj brezplačno rezervacijo";
+            }
+        }
+    </script>
+</body>
+</html>
