@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="sl">
 <head>
@@ -351,6 +350,7 @@
                                 price: parseFloat(p.price || p.cena || 0),
                                 old_price: p.old_price ? parseFloat(p.old_price) : null,
                                 promo_text: p.promo_text || null,
+                                promo_until: p.promo_until || null,
                                 quantity: qtyVal,
                                 views: parseInt(p.views || 0),
                                 desc: p.desc || p.description || p.opis || 'Za ta izdelek trenutno ni dodatnega opisa.',
@@ -379,10 +379,11 @@
                     price: 2.20, 
                     old_price: 2.80,
                     promo_text: "10 + 2 GRATIS",
+                    promo_until: "15.11.2026",
                     quantity: 20, 
                     views: 12, 
                     desc: "Živahna akvarijska ribica z značilnimi črnimi progami.", 
-                    image: FALLBACK_IMAGE,
+                    image: "",
                     active: true
                 }
             ];
@@ -461,6 +462,7 @@
             container.innerHTML = filtered.map(p => {
                 const inStock = p.quantity > 0;
                 const hasDiscount = p.old_price && p.old_price > p.price;
+                const promoFullText = p.promo_text ? (p.promo_until ? `${p.promo_text} (do ${p.promo_until})` : p.promo_text) : '';
 
                 return `
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden group">
@@ -474,8 +476,8 @@
                                         : '<span class="bg-rose-500/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm"><i class="fa-solid fa-xmark mr-1"></i> Ni na voljo</span>'
                                 }
                                 ${
-                                    p.promo_text 
-                                        ? `<span class="bg-amber-400 text-slate-900 text-[10px] font-black px-2.5 py-1 rounded-full shadow-md border border-amber-300 flex items-center"><i class="fa-solid fa-gift mr-1 text-amber-800"></i> ${p.promo_text}</span>` 
+                                    promoFullText 
+                                        ? `<span class="bg-amber-400 text-slate-900 text-[10px] font-black px-2.5 py-1 rounded-full shadow-md border border-amber-300 flex items-center"><i class="fa-solid fa-gift mr-1 text-amber-800"></i> ${promoFullText}</span>` 
                                         : ''
                                 }
                             </div>
@@ -551,8 +553,10 @@
 
             const promoBox = document.getElementById('modal-promo-box');
             const promoText = document.getElementById('modal-promo-text');
-            if (product.promo_text) {
-                promoText.textContent = `Posebna akcija: ${product.promo_text}`;
+            const promoFullText = product.promo_text ? (product.promo_until ? `${product.promo_text} (velja do ${product.promo_until})` : product.promo_text) : '';
+            
+            if (promoFullText) {
+                promoText.textContent = `Posebna akcija: ${promoFullText}`;
                 promoBox.classList.remove('hidden');
             } else {
                 promoBox.classList.add('hidden');
@@ -599,6 +603,7 @@
             document.getElementById('modal-qty').textContent = currentModalQty;
         }
 
+        // Pametna košarica: samodejno zazna akcijo (npr. 10 + 2 GRATIS)
         function addToCart(productId, qty = 1) {
             const product = products.find(p => p.id == productId);
             if (!product) return;
@@ -606,6 +611,22 @@
             if (product.quantity <= 0) {
                 showToast("Izdelek trenutno ni na voljo.", "error");
                 return;
+            }
+
+            let finalQty = qty;
+            let promoNote = "";
+
+            // Preverimo če akcija vsebuje vzorec X + Y GRATIS (npr. 10 + 2)
+            if (product.promo_text && product.promo_text.includes('+')) {
+                const parts = product.promo_text.split('+');
+                const buyCount = parseInt(parts[0]);
+                const freeCount = parseInt(parts[1]);
+
+                if (!isNaN(buyCount) && !isNaN(freeCount) && finalQty >= buyCount) {
+                    const multipliers = Math.floor(finalQty / buyCount);
+                    const freeEarned = multipliers * freeCount;
+                    promoNote = `Akcija: ${finalQty} plačanih + ${freeEarned} gratis!`;
+                }
             }
 
             const existingIndex = cart.findIndex(item => item.id == productId);
@@ -616,6 +637,7 @@
                     return;
                 }
                 cart[existingIndex].qty = newQty;
+                if (promoNote) cart[existingIndex].promoNote = promoNote;
             } else {
                 if (qty > product.quantity) {
                     showToast(`Na voljo je samo ${product.quantity} kosov.`, "error");
@@ -627,7 +649,8 @@
                     price: product.price,
                     image: product.image,
                     qty: qty,
-                    maxStock: product.quantity
+                    maxStock: product.quantity,
+                    promoNote: promoNote
                 });
             }
 
@@ -693,26 +716,29 @@
             }
 
             container.innerHTML = cart.map((item, index) => `
-                <div class="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 bg-slate-200">
-                            ${renderImageHTML(item.image, item.name, "w-full h-full object-cover")}
+                <div class="flex flex-col bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 bg-slate-200">
+                                ${renderImageHTML(item.image, item.name, "w-full h-full object-cover")}
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-xs text-slate-800 line-clamp-1">${item.name}</h4>
+                                <span class="text-[11px] text-teal-700 font-extrabold">${formatPrice(item.price)} / kos</span>
+                            </div>
                         </div>
-                        <div>
-                            <h4 class="font-bold text-xs text-slate-800 line-clamp-1">${item.name}</h4>
-                            <span class="text-[11px] text-teal-700 font-extrabold">${formatPrice(item.price)}</span>
+                        <div class="flex items-center space-x-2">
+                            <div class="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden">
+                                <button onclick="updateCartItemQty(${index}, -1)" class="px-2 py-1 text-slate-600 hover:bg-slate-100 font-bold text-xs">-</button>
+                                <span class="px-2 text-xs font-bold">${item.qty}</span>
+                                <button onclick="updateCartItemQty(${index}, 1)" class="px-2 py-1 text-slate-600 hover:bg-slate-100 font-bold text-xs">+</button>
+                            </div>
+                            <button onclick="removeFromCart(${index})" class="text-slate-400 hover:text-rose-600 p-1.5 transition">
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2">
-                        <div class="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden">
-                            <button onclick="updateCartItemQty(${index}, -1)" class="px-2 py-1 text-slate-600 hover:bg-slate-100 font-bold text-xs">-</button>
-                            <span class="px-2 text-xs font-bold">${item.qty}</span>
-                            <button onclick="updateCartItemQty(${index}, 1)" class="px-2 py-1 text-slate-600 hover:bg-slate-100 font-bold text-xs">+</button>
-                        </div>
-                        <button onclick="removeFromCart(${index})" class="text-slate-400 hover:text-rose-600 p-1.5 transition">
-                            <i class="fa-solid fa-trash-can text-xs"></i>
-                        </button>
-                    </div>
+                    ${item.promoNote ? `<div class="bg-amber-100 text-amber-900 text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center"><i class="fa-solid fa-gift mr-1.5 text-amber-600"></i>${item.promoNote}</div>` : ''}
                 </div>
             `).join('');
         }
@@ -735,6 +761,22 @@
             }
 
             item.qty = newQty;
+
+            // Posodobimo akcijski izračun
+            if (product && product.promo_text && product.promo_text.includes('+')) {
+                const parts = product.promo_text.split('+');
+                const buyCount = parseInt(parts[0]);
+                const freeCount = parseInt(parts[1]);
+
+                if (!isNaN(buyCount) && !isNaN(freeCount) && item.qty >= buyCount) {
+                    const multipliers = Math.floor(item.qty / buyCount);
+                    const freeEarned = multipliers * freeCount;
+                    item.promoNote = `Akcija: ${item.qty} plačanih + ${freeEarned} gratis!`;
+                } else {
+                    item.promoNote = "";
+                }
+            }
+
             saveCart();
         }
 
@@ -775,7 +817,7 @@
                 }
 
                 const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-                const itemsSummary = cart.map(i => `${i.qty}x ${i.name} (${formatPrice(i.price * i.qty)})`).join(', ');
+                const itemsSummary = cart.map(i => `${i.qty}x ${i.name} (${formatPrice(i.price * i.qty)}) ${i.promoNote ? '[' + i.promoNote + ']' : ''}`).join(', ');
 
                 const formData = new FormData();
                 formData.append("access_key", WEB3FORMS_KEY);
