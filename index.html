@@ -154,7 +154,7 @@
                     <div class="mt-4 pt-4 border-t border-slate-100 flex items-baseline justify-between">
                         <div>
                             <span class="block text-xs text-slate-400 font-bold uppercase">Cena na kos</span>
-                            <div id="modal-price-container" class="flex items-baseline space-x-2"></div>
+                            <div id="modal-price-container" class="flex flex-col space-y-1"></div>
                         </div>
                     </div>
 
@@ -349,6 +349,7 @@
                                 category: (p.category || p.kategorija || 'ostalo').toLowerCase().trim(),
                                 price: parseFloat(p.price || p.cena || 0),
                                 old_price: p.old_price ? parseFloat(p.old_price) : null,
+                                old_price_until: p.old_price_until || null,
                                 promo_text: p.promo_text || null,
                                 promo_until: p.promo_until || null,
                                 quantity: qtyVal,
@@ -378,6 +379,7 @@
                     category: "ribice", 
                     price: 2.20, 
                     old_price: 2.80,
+                    old_price_until: "30.11.2026",
                     promo_text: "10 + 2 GRATIS",
                     promo_until: "15.11.2026",
                     quantity: 20, 
@@ -463,6 +465,7 @@
                 const inStock = p.quantity > 0;
                 const hasDiscount = p.old_price && p.old_price > p.price;
                 const promoFullText = p.promo_text ? (p.promo_until ? `${p.promo_text} (do ${p.promo_until})` : p.promo_text) : '';
+                const discountUntilText = hasDiscount && p.old_price_until ? `(do ${p.old_price_until})` : '';
 
                 return `
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden group">
@@ -493,9 +496,12 @@
                             <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
                                 <div>
                                     <span class="block text-[9px] text-slate-400 font-bold uppercase">Cena na kos</span>
-                                    <div class="flex items-baseline space-x-1.5">
-                                        <span class="text-lg font-black ${hasDiscount ? 'text-rose-600' : 'text-slate-900'}">${formatPrice(p.price)}</span>
-                                        ${hasDiscount ? `<span class="text-xs text-slate-400 line-through font-semibold">${formatPrice(p.old_price)}</span>` : ''}
+                                    <div class="flex flex-col">
+                                        <div class="flex items-baseline space-x-1.5">
+                                            <span class="text-lg font-black ${hasDiscount ? 'text-rose-600' : 'text-slate-900'}">${formatPrice(p.price)}</span>
+                                            ${hasDiscount ? `<span class="text-xs text-slate-400 line-through font-semibold">${formatPrice(p.old_price)}</span>` : ''}
+                                        </div>
+                                        ${discountUntilText ? `<span class="text-[10px] text-rose-500 font-medium">Akcija ${discountUntilText}</span>` : ''}
                                     </div>
                                 </div>
                                 <div class="flex items-center space-x-1">
@@ -546,9 +552,14 @@
             
             const priceContainer = document.getElementById('modal-price-container');
             const hasDiscount = product.old_price && product.old_price > product.price;
+            const discountUntilText = hasDiscount && product.old_price_until ? `(velja do ${product.old_price_until})` : '';
+
             priceContainer.innerHTML = `
-                <span class="text-3xl sm:text-4xl font-black ${hasDiscount ? 'text-rose-600' : 'text-teal-800'}">${formatPrice(product.price)}</span>
-                ${hasDiscount ? `<span class="text-lg text-slate-400 line-through font-semibold ml-2">${formatPrice(product.old_price)}</span>` : ''}
+                <div class="flex items-baseline space-x-2">
+                    <span class="text-3xl sm:text-4xl font-black ${hasDiscount ? 'text-rose-600' : 'text-teal-800'}">${formatPrice(product.price)}</span>
+                    ${hasDiscount ? `<span class="text-lg text-slate-400 line-through font-semibold">${formatPrice(product.old_price)}</span>` : ''}
+                </div>
+                ${discountUntilText ? `<span class="text-xs text-rose-500 font-semibold mt-0.5">Znižanje cene ${discountUntilText}</span>` : ''}
             `;
 
             const promoBox = document.getElementById('modal-promo-box');
@@ -603,7 +614,6 @@
             document.getElementById('modal-qty').textContent = currentModalQty;
         }
 
-        // Pametna košarica: samodejno zazna akcijo (npr. 10 + 2 GRATIS)
         function addToCart(productId, qty = 1) {
             const product = products.find(p => p.id == productId);
             if (!product) return;
@@ -616,7 +626,6 @@
             let finalQty = qty;
             let promoNote = "";
 
-            // Preverimo če akcija vsebuje vzorec X + Y GRATIS (npr. 10 + 2)
             if (product.promo_text && product.promo_text.includes('+')) {
                 const parts = product.promo_text.split('+');
                 const buyCount = parseInt(parts[0]);
@@ -762,7 +771,6 @@
 
             item.qty = newQty;
 
-            // Posodobimo akcijski izračun
             if (product && product.promo_text && product.promo_text.includes('+')) {
                 const parts = product.promo_text.split('+');
                 const buyCount = parseInt(parts[0]);
